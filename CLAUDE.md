@@ -8,7 +8,6 @@ This project includes comprehensive AI coding guidelines from [.ai-rules/](./.ai
 
 For technology-specific rules, see:
 - [Tailwind Guidelines](./.ai-rules/rules/project-tech/tailwind/)
-- [Schadcn Guidelines](./.ai-rules/rules/project-tech/schadcn/)
 - [Security Best Practices](./.ai-rules/rules/user/security-best-practices.md)
 - [PRD Custom Instructions](./.ai-rules/rules/user/prd-custom-instructions.md)
 - [Coding Assistant Guidelines](./.ai-rules/rules/user/coding-assistant.md)
