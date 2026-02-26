@@ -26,7 +26,6 @@ export default async function handler(req, res) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("state", state);
-  authUrl.searchParams.set("scope", "");
 
   res.redirect(302, authUrl.toString());
 }
