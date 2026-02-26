@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Context
+project-name: Canvas Feedback Manager
+obsidian-project: 06-Efforts/Projects/Canvas Feedback Manager.md
+
 ## AI Rules Integration
 
 This project includes comprehensive AI coding guidelines from [.ai-rules/](./.ai-rules/)
