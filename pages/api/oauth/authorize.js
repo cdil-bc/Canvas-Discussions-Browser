@@ -22,10 +22,22 @@ export default async function handler(req, res) {
   await session.save();
 
   const authUrl = new URL(`${canvasUrl}/login/oauth2/auth`);
+  const scopes = [
+    "url:GET|/api/v1/courses/:id",
+    "url:GET|/api/v1/courses/:course_id/discussion_topics",
+    "url:GET|/api/v1/courses/:course_id/discussion_topics/:topic_id/entries",
+    "url:GET|/api/v1/courses/:course_id/enrollments",
+    "url:GET|/api/v1/courses/:course_id/assignments",
+    "url:GET|/api/v1/courses/:course_id/assignments/:assignment_id/submissions",
+    "url:GET|/api/v1/courses/:course_id/assignments/:assignment_id/submissions/:user_id",
+    "url:GET|/api/v1/users/:user_id/profile",
+  ].join(" ");
+
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("scope", scopes);
 
   res.redirect(302, authUrl.toString());
 }
