@@ -22,7 +22,7 @@ import { fetchCourseEnrollments } from '../js/dataUtils';
 import { processCanvasDataForDashboards, clearProcessedDataCache } from '../js/gradingDataProcessor';
 
 export default function Home() {
-  const { credentialsMissing, apiUrl, apiKey, courseId } = useCanvasAuth();
+  const { credentialsMissing, courseId } = useCanvasAuth();
   const { 
     dataSource, 
     cacheTimestamp, 
@@ -59,7 +59,7 @@ export default function Home() {
     
     // Load Google Sheets data after Canvas data is loaded
     // This will be called from loadActivityData after recentActivity is populated
-  }, [apiUrl, apiKey, courseId]);  
+  }, [courseId]);  
   
   /**
    * Load enhanced user data from Google Sheets
@@ -126,7 +126,7 @@ export default function Home() {
     console.log('→ Loading activity data using optimized processor');
     
     // Use the shared data processor for efficient Canvas data handling
-    const processedData = await processCanvasDataForDashboards({ apiUrl, apiKey, courseId });
+    const processedData = await processCanvasDataForDashboards({ courseId });
     
     // Extract activity data from processed data
     const { activities, uniqueUsers } = processedData.recentActivity;
@@ -252,11 +252,11 @@ export default function Home() {
         console.log('✓ Using cached data for markdown export');
       } catch (error) {
         console.log('→ Cache invalid, fetching fresh data for export');
-        allPosts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+        allPosts = await fetchCanvasDiscussions({ courseId });
       }
     } else {
       console.log('→ No cache found, fetching fresh data for export');
-      allPosts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+      allPosts = await fetchCanvasDiscussions({ courseId });
     }
     const topicMap = {};
     
@@ -294,8 +294,6 @@ export default function Home() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        apiUrl,
-        apiKey,
         endpoint: `/courses/${courseId}/discussion_topics`,
         method: 'GET'
       })

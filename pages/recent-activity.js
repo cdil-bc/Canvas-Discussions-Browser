@@ -4,8 +4,6 @@ import { fetchCanvasDiscussions, clearCache, getCacheTimestamp } from '../js/can
 import { fetchCourseEnrollments } from '../js/dataUtils';
 
 export default function RecentActivity() {
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [courseId, setCourseId] = useState('');
   const [courseName, setCourseName] = useState('');
   const [recentActivity, setRecentActivity] = useState([]);
@@ -17,17 +15,15 @@ export default function RecentActivity() {
 
   // Helper: Check if credentials are set
   function credentialsMissing() {
-    return !apiUrl || !apiKey || !courseId;
+    return !courseId;
   }
 
   useEffect(() => {
-    setApiUrl(localStorage.getItem('canvas_api_url') || '');
-    setApiKey(localStorage.getItem('canvas_api_key') || '');
     setCourseId(localStorage.getItem('course_id') || '');
   }, []);
 
   useEffect(() => {
-    if (!apiUrl || !apiKey || !courseId) return;
+    if (!courseId) return;
     setLoading(true);
     setError('');
     setDataSource('');
@@ -58,18 +54,16 @@ export default function RecentActivity() {
         console.log = originalLog; // Restore original console.log
         setLoading(false);
       });
-  }, [apiUrl, apiKey, courseId]);
+  }, [courseId]);
 
   useEffect(() => {
-    if (!apiUrl || !apiKey || !courseId) return;
+    if (!courseId) return;
     async function fetchCourseName() {
       try {
         const res = await fetch('/api/canvas-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiUrl,
-            apiKey,
             endpoint: `/courses/${courseId}`,
             method: 'GET'
           })
@@ -85,14 +79,14 @@ export default function RecentActivity() {
       }
     }
     fetchCourseName();
-  }, [apiUrl, apiKey, courseId]);
+  }, [courseId]);
 
   async function loadActivityData() {
     // Get all discussion posts
-    const allPosts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+    const allPosts = await fetchCanvasDiscussions({ courseId });
     
     // Get teacher user IDs to exclude from activity feed
-    const teacherUserIds = await fetchCourseEnrollments(apiUrl, apiKey, courseId);
+    const teacherUserIds = await fetchCourseEnrollments(courseId);
     
     // Filter out teacher posts and create activity feed
     const studentPosts = allPosts.filter(post => {

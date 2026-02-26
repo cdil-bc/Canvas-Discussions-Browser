@@ -3,24 +3,20 @@ import Link from 'next/link';
 import { fetchCanvasDiscussions } from '../js/canvasApi';
 
 export default function Dashboard() {
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [courseId, setCourseId] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setApiUrl(localStorage.getItem('canvas_api_url') || '');
-    setApiKey(localStorage.getItem('canvas_api_key') || '');
     setCourseId(localStorage.getItem('course_id') || '');
   }, []);
 
   useEffect(() => {
-    if (!apiUrl || !apiKey || !courseId) return;
+    if (!courseId) return;
     setLoading(true);
     setError('');
-    fetchCanvasDiscussions({ apiUrl, apiKey, courseId })
+    fetchCanvasDiscussions({ courseId })
       .then(posts => {
         // Group posts by user
         const userMap = {};
@@ -33,7 +29,7 @@ export default function Dashboard() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [apiUrl, apiKey, courseId]);
+  }, [courseId]);
 
   return (
     <div style={{ maxWidth: 700, margin: '2rem auto', fontFamily: 'sans-serif' }}>

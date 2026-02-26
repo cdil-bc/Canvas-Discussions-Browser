@@ -583,14 +583,12 @@ export function createMasterParticipantListWithVerification(canvasUsers, csvData
 
 // Filter out teacher/instructor roles
 // Fetch course enrollments to identify teacher roles
-export async function fetchCourseEnrollments(apiUrl, apiKey, courseId) {
+export async function fetchCourseEnrollments(courseId) {
   try {
     const response = await fetch('/api/canvas-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        apiUrl,
-        apiKey,
         endpoint: `/courses/${courseId}/enrollments?per_page=100`,
         method: 'GET'
       })
@@ -603,14 +601,11 @@ export async function fetchCourseEnrollments(apiUrl, apiKey, courseId) {
     
     const enrollments = await response.json();
     
-    // Extract teacher/instructor user IDs
     const teacherUserIds = new Set();
     enrollments.forEach(enrollment => {
-      // Canvas roles that indicate instructors/teachers
       const teacherRoles = ['TeacherEnrollment', 'TaEnrollment', 'DesignerEnrollment'];
       if (teacherRoles.includes(enrollment.type)) {
         teacherUserIds.add(enrollment.user_id);
-        console.log(`Found teacher: ${enrollment.user?.name} (${enrollment.user_id}) - Role: ${enrollment.type}`);
       }
     });
     

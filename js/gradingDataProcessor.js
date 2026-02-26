@@ -10,16 +10,12 @@ import { fetchCourseEnrollments } from './dataUtils';
 
 /**
  * Batch fetch assignment submissions for multiple assignments
- * Replaces individual submission API calls with efficient batch requests
- * 
- * @param {Object} params - API parameters
- * @param {string} params.apiUrl - Canvas API base URL
- * @param {string} params.apiKey - Canvas API access token
- * @param {string} params.courseId - Canvas course ID
+ *
+ * @param {string} courseId - Canvas course ID
  * @param {Array} assignmentIds - Array of assignment IDs to fetch submissions for
  * @returns {Promise<Object>} Map of assignment_id -> submissions array
  */
-async function fetchAssignmentSubmissionsBatch({ apiUrl, apiKey, courseId }, assignmentIds) {
+async function fetchAssignmentSubmissionsBatch(courseId, assignmentIds) {
   const submissionsByAssignment = {};
   
   // Fetch submissions for each assignment in parallel
@@ -34,8 +30,6 @@ async function fetchAssignmentSubmissionsBatch({ apiUrl, apiKey, courseId }, ass
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiUrl,
-            apiKey,
             endpoint: `/courses/${courseId}/assignments/${assignmentId}/submissions?per_page=100&page=${page}`,
             method: 'GET'
           })
@@ -52,7 +46,6 @@ async function fetchAssignmentSubmissionsBatch({ apiUrl, apiKey, courseId }, ass
       }
       
       submissionsByAssignment[assignmentId] = allSubmissions;
-      console.log(`✓ Fetched ${allSubmissions.length} submissions for assignment ${assignmentId}`);
     } catch (error) {
       console.error(`Error fetching submissions for assignment ${assignmentId}:`, error);
       submissionsByAssignment[assignmentId] = [];
@@ -67,33 +60,25 @@ async function fetchAssignmentSubmissionsBatch({ apiUrl, apiKey, courseId }, ass
  * Single source of truth for Canvas data processing with optimized API usage
  * 
  * @param {Object} params - API parameters
- * @param {string} params.apiUrl - Canvas API base URL
- * @param {string} params.apiKey - Canvas API access token
  * @param {string} params.courseId - Canvas course ID
  * @returns {Promise<Object>} Processed data for both views
  */
-export async function processCanvasDataForDashboards({ apiUrl, apiKey, courseId }) {
-  const startTime = performance.now();
-  console.log('→ Processing Canvas data for dashboards (optimized)');
-  
-  // Check for cached processed data
+export async function processCanvasDataForDashboards({ courseId }) {
   const processingCacheKey = `canvas_processed_${courseId}`;
   const cached = localStorage.getItem(processingCacheKey);
   
   if (cached) {
     try {
-      const { data, timestamp } = JSON.parse(cached);
-      console.log('✓ Using cached processed dashboard data', new Date(timestamp));
+      const { data } = JSON.parse(cached);
       return data;
     } catch (error) {
       localStorage.removeItem(processingCacheKey);
     }
   }
   
-  // Fetch all Canvas data in parallel
   const [allPosts, teacherUserIds] = await Promise.all([
-    fetchCanvasDiscussions({ apiUrl, apiKey, courseId }),
-    fetchCourseEnrollments(apiUrl, apiKey, courseId)
+    fetchCanvasDiscussions({ courseId }),
+    fetchCourseEnrollments(courseId)
   ]);
   
   // Filter student posts (exclude teachers)
@@ -105,8 +90,7 @@ export async function processCanvasDataForDashboards({ apiUrl, apiKey, courseId 
   // Process recent activity data for homepage
   const recentActivityData = processRecentActivity(studentPosts);
   
-  // Process grading topics data for feedback dashboard
-  const gradingTopicsData = await processGradingTopics(allPosts, teacherUserIds, { apiUrl, apiKey, courseId });
+  const gradingTopicsData = await processGradingTopics(allPosts, teacherUserIds, courseId);
   
   const processedData = {
     recentActivity: recentActivityData,
@@ -114,19 +98,10 @@ export async function processCanvasDataForDashboards({ apiUrl, apiKey, courseId 
     lastProcessed: Date.now()
   };
   
-  // Cache the processed data
   localStorage.setItem(processingCacheKey, JSON.stringify({
     data: processedData,
     timestamp: Date.now()
   }));
-  
-  const processingTime = Math.round(performance.now() - startTime);
-  console.log('✓ Processed Canvas data for dashboards', {
-    recentPosts: recentActivityData.activities.length,
-    gradingTopics: gradingTopicsData.length,
-    uniqueUsers: recentActivityData.uniqueUsers,
-    processingTime: `${processingTime}ms`
-  });
   
   return processedData;
 }
@@ -176,7 +151,7 @@ function processRecentActivity(studentPosts) {
  * @param {Object} apiParams - API parameters for submission fetching
  * @returns {Promise<Array>} Processed grading topics
  */
-async function processGradingTopics(allPosts, teacherUserIds, { apiUrl, apiKey, courseId }) {
+async function processGradingTopics(allPosts, teacherUserIds, courseId) {
   // Filter to only graded discussions (assignment-based topics)
   const gradedPosts = allPosts.filter(post => {
     return post.assignment_id !== null && post.assignment_id !== undefined;
@@ -215,10 +190,8 @@ async function processGradingTopics(allPosts, teacherUserIds, { apiUrl, apiKey, 
     }
   });
   
-  // Batch fetch all assignment submissions
-  console.log(`→ Batch fetching submissions for ${assignmentIds.size} assignments:`, Array.from(assignmentIds));
   const submissionsByAssignment = await fetchAssignmentSubmissionsBatch(
-    { apiUrl, apiKey, courseId }, 
+    courseId,
     Array.from(assignmentIds)
   );
   
@@ -260,11 +233,7 @@ async function processGradingTopics(allPosts, teacherUserIds, { apiUrl, apiKey, 
       }
     });
     
-    // Debug: Log teacher identification
-    console.log(`🎓 Teachers identified for topic "${topic.title}":`, Array.from(teacherUserIds));
-    
     // Track teacher feedback for each student using the flattened post structure
-    console.log(`🔍 Topic "${topic.title}" has ${topic.studentPosts.length} student posts and ${topic.teacherReplies.length} teacher replies`);
     
     // Create a map of student post IDs to student names
     const studentPostIdToName = {};
@@ -276,8 +245,6 @@ async function processGradingTopics(allPosts, teacherUserIds, { apiUrl, apiKey, 
       }
     });
     
-    console.log(`📋 Found ${topicStudentMainPosts.length} main student posts, mapped ${Object.keys(studentPostIdToName).length} post IDs`);
-    
     // Check teacher replies to see if they're replying to student posts
     topic.teacherReplies.forEach(reply => {
       const replyAuthor = reply.user?.display_name || reply.user_name;
@@ -288,7 +255,6 @@ async function processGradingTopics(allPosts, teacherUserIds, { apiUrl, apiKey, 
       if (parentPostId && studentPostIdToName[parentPostId]) {
         const studentName = studentPostIdToName[parentPostId];
         studentTeacherFeedback[studentName].add(replyAuthor);
-        console.log(`📝 Teacher feedback tracked: ${replyAuthor} → ${studentName} (post ${parentPostId})`);
       }
     });
     
@@ -311,10 +277,7 @@ async function processGradingTopics(allPosts, teacherUserIds, { apiUrl, apiKey, 
         teacherFeedback: teacherFeedbackArray
       });
       
-      // Debug: Log students with teacher feedback
-      if (teacherFeedbackArray.length > 0) {
-        console.log(`👨‍🏫 ${studentInfo.name} has feedback from: ${teacherFeedbackArray.join(', ')}`);
-      }
+
     });
     
     // Sort all students by post date (oldest first)
@@ -349,5 +312,4 @@ async function processGradingTopics(allPosts, teacherUserIds, { apiUrl, apiKey, 
 export function clearProcessedDataCache(courseId) {
   const processingCacheKey = `canvas_processed_${courseId}`;
   localStorage.removeItem(processingCacheKey);
-  console.log('✓ Cleared processed data cache for course', courseId);
 }

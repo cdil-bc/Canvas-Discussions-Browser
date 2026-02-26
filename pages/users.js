@@ -16,7 +16,7 @@ import UserCard from '../components/discussion/UserCard';
 import { fetchCanvasDiscussions } from '../js/canvasApi';
 
 export default function UsersPage() {
-  const { credentialsMissing, apiUrl, apiKey, courseId } = useCanvasAuth();
+  const { credentialsMissing, courseId } = useCanvasAuth();
   
   // State management for users dashboard
   const [users, setUsers] = useState([]);                // Discussion activity data by user
@@ -76,7 +76,7 @@ export default function UsersPage() {
       return;
     }
 
-    const allPosts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+    const allPosts = await fetchCanvasDiscussions({ courseId });
     const topicMap = {};
     
     allPosts.forEach(post => {
@@ -109,8 +109,6 @@ export default function UsersPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        apiUrl,
-        apiKey,
         endpoint: `/courses/${courseId}/discussion_topics`,
         method: 'GET'
       })
@@ -174,8 +172,6 @@ export default function UsersPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiUrl,
-            apiKey,
             endpoint: `/courses/${courseId}/users?enrollment_type[]=student&per_page=100`,
             method: 'GET'
           })
@@ -188,8 +184,6 @@ export default function UsersPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiUrl,
-            apiKey,
             endpoint: `/courses/${courseId}/discussion_topics`,
             method: 'GET'
           })
@@ -200,8 +194,6 @@ export default function UsersPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiUrl,
-            apiKey,
             endpoint: `/courses/${courseId}/assignments?per_page=100`,
             method: 'GET'
           })
@@ -225,8 +217,6 @@ export default function UsersPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              apiUrl,
-              apiKey,
               endpoint: `/courses/${courseId}/assignments/${topic.assignment_id}/submissions`,
               method: 'GET'
             })
@@ -249,7 +239,7 @@ export default function UsersPage() {
         setUngradedMap(ungraded);
 
         // Group posts by user for last active
-        const posts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+        const posts = await fetchCanvasDiscussions({ courseId });
         const userMap = {};
         posts.forEach(post => {
           const name = post.user?.display_name || post.user_name || 'Unknown';
@@ -271,7 +261,7 @@ export default function UsersPage() {
       }
     }
     fetchAll();
-  }, [apiUrl, apiKey, courseId]);
+  }, [courseId]);
 
   if (credentialsMissing()) {
     return (

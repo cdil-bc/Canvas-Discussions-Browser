@@ -1,27 +1,32 @@
 /**
  * useCanvasAuth - Custom hook for Canvas API authentication
- * 
- * Provides credential management and validation functionality.
- * Integrates with CanvasProvider for centralized state management.
+ *
+ * Provides OAuth authentication state and actions.
  */
 
 import { useCanvas } from './CanvasProvider';
 
 export function useCanvasAuth() {
-  const { 
-    apiUrl, 
-    apiKey, 
-    courseId, 
-    updateCredentials, 
-    credentialsMissing 
+  const {
+    isLoggedIn,
+    userName,
+    authLoading,
+    courseId,
+    updateCourseId,
+    login,
+    logout,
+    credentialsMissing
   } = useCanvas();
 
   return {
-    apiUrl,
-    apiKey,
+    isLoggedIn,
+    userName,
+    authLoading,
     courseId,
-    updateCredentials,
+    updateCourseId,
+    login,
+    logout,
     credentialsMissing,
-    isAuthenticated: !credentialsMissing()
+    isAuthenticated: isLoggedIn && !!courseId
   };
 }

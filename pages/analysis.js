@@ -10,8 +10,6 @@ import {
 } from '../js/dataUtils';
 
 export default function Analysis() {
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [courseId, setCourseId] = useState('');
   const [courseName, setCourseName] = useState('');
   const [allPosts, setAllPosts] = useState([]);
@@ -23,17 +21,15 @@ export default function Analysis() {
   const [error, setError] = useState('');
 
   function credentialsMissing() {
-    return !apiUrl || !apiKey || !courseId;
+    return !courseId;
   }
 
   useEffect(() => {
-    setApiUrl(localStorage.getItem('canvas_api_url') || '');
-    setApiKey(localStorage.getItem('canvas_api_key') || '');
     setCourseId(localStorage.getItem('course_id') || '');
   }, []);
 
   useEffect(() => {
-    if (!apiUrl || !apiKey || !courseId) return;
+    if (!courseId) return;
     
     // Fetch course name
     async function fetchCourseName() {
@@ -42,8 +38,6 @@ export default function Analysis() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiUrl,
-            apiKey,
             endpoint: `/courses/${courseId}`,
             method: 'GET'
           })
@@ -57,7 +51,7 @@ export default function Analysis() {
       }
     }
     fetchCourseName();
-  }, [apiUrl, apiKey, courseId]);
+  }, [courseId]);
 
   async function loadAnalysisData() {
     if (credentialsMissing()) return;
@@ -69,11 +63,11 @@ export default function Analysis() {
       console.log('=== LOADING ANALYSIS DATA ===');
       
       // Load Canvas discussions
-      const canvasPosts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+      const canvasPosts = await fetchCanvasDiscussions({ courseId });
       setAllPosts(canvasPosts);
       
       // Fetch course enrollments to identify teachers
-      const teacherUserIds = await fetchCourseEnrollments(apiUrl, apiKey, courseId);
+      const teacherUserIds = await fetchCourseEnrollments(courseId);
       console.log(`Found ${teacherUserIds.length} teachers in course enrollments`);
       
       // Load CSV data

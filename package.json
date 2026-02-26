@@ -10,6 +10,7 @@
   "dependencies": {
     "convex": "^1.27.1",
     "dompurify": "^3.2.6",
+    "iron-session": "^8.0.4",
     "next": "^14.2.29",
     "react": "18.2.0",
     "react-dom": "18.2.0"

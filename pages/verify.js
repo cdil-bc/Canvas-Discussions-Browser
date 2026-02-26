@@ -3,8 +3,6 @@ import { fetchCanvasDiscussions } from '../js/canvasApi';
 import { parseCSV, loadDataFiles, createMasterParticipantListWithVerification } from '../js/dataUtils';
 
 export default function Verify() {
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [courseId, setCourseId] = useState('');
   const [courseName, setCourseName] = useState('');
   const [canvasUsers, setCanvasUsers] = useState([]);
@@ -20,17 +18,15 @@ export default function Verify() {
   const [error, setError] = useState('');
 
   function credentialsMissing() {
-    return !apiUrl || !apiKey || !courseId;
+    return !courseId;
   }
 
   useEffect(() => {
-    setApiUrl(localStorage.getItem('canvas_api_url') || '');
-    setApiKey(localStorage.getItem('canvas_api_key') || '');
     setCourseId(localStorage.getItem('course_id') || '');
   }, []);
 
   useEffect(() => {
-    if (!apiUrl || !apiKey || !courseId) return;
+    if (!courseId) return;
     
     // Fetch course name
     async function fetchCourseName() {
@@ -39,8 +35,6 @@ export default function Verify() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiUrl,
-            apiKey,
             endpoint: `/courses/${courseId}`,
             method: 'GET'
           })
@@ -57,7 +51,7 @@ export default function Verify() {
 
     // Load Canvas users
     loadCanvasUsers();
-  }, [apiUrl, apiKey, courseId]);
+  }, [courseId]);
 
   async function loadCanvasUsers() {
     if (credentialsMissing()) return;
@@ -66,7 +60,7 @@ export default function Verify() {
     setError('');
     
     try {
-      const posts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+      const posts = await fetchCanvasDiscussions({ courseId });
       
       // Extract unique users from Canvas posts using improved logic
       const userMap = {};

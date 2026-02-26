@@ -1,65 +1,73 @@
 /**
  * Canvas API Proxy - Next.js API Route
- * 
- * This proxy route solves CORS issues when making Canvas API requests from the browser.
- * Canvas API has CORS restrictions that prevent direct browser-to-Canvas communication,
- * so all requests are routed through this server-side proxy.
- * 
- * Security Benefits:
- * - Canvas API tokens never exposed to client-side code
- * - All API communication happens server-side
- * - Request/response data properly validated
- * 
+ *
+ * Routes all Canvas API requests through the server to avoid CORS issues.
+ * Authenticates using OAuth tokens stored in the encrypted session cookie.
+ * Automatically refreshes expired tokens using the refresh token.
+ *
  * Usage Pattern:
- * Client → POST /api/canvas-proxy → Canvas API → Response → Client
- * 
- * @param {NextApiRequest} req - Next.js API request object
- * @param {NextApiResponse} res - Next.js API response object
+ * Client → POST /api/canvas-proxy { endpoint, method?, body? } → Canvas API → Response
  */
-export default async function handler(req, res) {
-  // Extract Canvas API request parameters from POST body
-  const { endpoint, apiUrl, apiKey, method = 'GET', body } = req.body || {};
+import { getSession } from "../../lib/session";
+import { refreshCanvasToken } from "../../lib/refreshToken";
 
-  // Validate required parameters for Canvas API request
-  if (!endpoint || !apiUrl || !apiKey) {
-    return res.status(400).json({ error: 'Missing required parameters: endpoint, apiUrl, and apiKey are required.' });
+export default async function handler(req, res) {
+  const session = await getSession(req, res);
+
+  if (!session.isLoggedIn || !session.accessToken) {
+    return res.status(401).json({ error: "Not authenticated. Please sign in with Canvas." });
   }
 
-  try {
-    // Construct full Canvas API URL
+  const { endpoint, method = "GET", body } = req.body || {};
+
+  if (!endpoint) {
+    return res.status(400).json({ error: "Missing required parameter: endpoint" });
+  }
+
+  const apiUrl = `${session.canvasUrl}/api/v1`;
+
+  async function makeCanvasRequest(token) {
     const url = `${apiUrl}${endpoint}`;
-    
-    // Configure fetch options with Canvas API authentication
     const fetchOptions = {
       method,
       headers: {
-        'Authorization': `Bearer ${apiKey}`, // Canvas API requires Bearer token authentication
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
     };
-    
-    // Add request body for non-GET requests
-    if (method !== 'GET' && body) {
+
+    if (method !== "GET" && body) {
       fetchOptions.body = JSON.stringify(body);
     }
-    
-    // Make the actual request to Canvas API
-    const canvasRes = await fetch(url, fetchOptions);
+
+    return fetch(url, fetchOptions);
+  }
+
+  try {
+    let canvasRes = await makeCanvasRequest(session.accessToken);
+
+    // Auto-refresh on 401 and retry once
+    if (canvasRes.status === 401) {
+      const refreshed = await refreshCanvasToken(session);
+      if (refreshed) {
+        canvasRes = await makeCanvasRequest(session.accessToken);
+      } else {
+        return res.status(401).json({ error: "Session expired. Please sign in again." });
+      }
+    }
+
     const data = await canvasRes.json();
-    
-    // Forward Canvas API errors with proper status codes
+
     if (!canvasRes.ok) {
-      return res.status(canvasRes.status).json({ 
-        error: data.errors || data.message || 'Canvas API error',
-        status: canvasRes.status 
+      return res.status(canvasRes.status).json({
+        error: data.errors || data.message || "Canvas API error",
+        status: canvasRes.status,
       });
     }
-    
-    // Forward successful Canvas API response
+
     res.status(200).json(data);
   } catch (e) {
-    // Handle network errors or other unexpected issues
-    console.error('Canvas proxy error:', e);
-    res.status(500).json({ error: e.message });
+    console.error("Canvas proxy error:", e.message);
+    res.status(500).json({ error: "Failed to communicate with Canvas API" });
   }
 }

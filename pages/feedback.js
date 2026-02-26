@@ -27,7 +27,7 @@ import DOMPurify from "dompurify";
 import TabbedTopicCard from "../components/discussion/TabbedTopicCard";
 
 export default function FeedbackPage() {
-  const { credentialsMissing, apiUrl, apiKey, courseId } = useCanvasAuth();
+  const { credentialsMissing, courseId } = useCanvasAuth();
   const { dataSource, cacheTimestamp, handleClearCache, setupCacheListener } =
     useCanvasCache(courseId);
 
@@ -87,7 +87,7 @@ export default function FeedbackPage() {
         setLoading(false);
         cleanupListener();
       });
-  }, [apiUrl, apiKey, courseId]);
+  }, [courseId]);
 
   /**
    * Loads and analyzes discussion topic data for feedback dashboard
@@ -98,8 +98,6 @@ export default function FeedbackPage() {
 
     // Use the shared data processor for efficient Canvas data handling
     const processedData = await processCanvasDataForDashboards({
-      apiUrl,
-      apiKey,
       courseId,
     });
 
@@ -223,11 +221,11 @@ export default function FeedbackPage() {
         console.log("✓ Using cached data for markdown export");
       } catch (error) {
         console.log("→ Cache invalid, fetching fresh data for export");
-        allPosts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+        allPosts = await fetchCanvasDiscussions({ courseId });
       }
     } else {
       console.log("→ No cache found, fetching fresh data for export");
-      allPosts = await fetchCanvasDiscussions({ apiUrl, apiKey, courseId });
+      allPosts = await fetchCanvasDiscussions({ courseId });
     }
     const topicMap = {};
 
@@ -267,8 +265,6 @@ export default function FeedbackPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        apiUrl,
-        apiKey,
         endpoint: `/courses/${courseId}/discussion_topics`,
         method: "GET",
       }),

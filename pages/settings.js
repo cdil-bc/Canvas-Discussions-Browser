@@ -1,8 +1,7 @@
 /**
  * Settings Page (/settings) - Component-Based Architecture
  *
- * Canvas API credentials management and configuration.
- * Migrated to use the new component-based architecture with Layout component.
+ * Canvas OAuth authentication and configuration.
  */
 
 import { useState, useEffect } from "react";
@@ -14,12 +13,10 @@ import { clearCache } from "../js/canvasApi";
 import { useConvexConnectionState } from "convex/react";
 
 export default function Settings() {
-  const { apiUrl, apiKey, courseId, updateCredentials } = useCanvasAuth();
+  const { isLoggedIn, userName, authLoading, courseId, updateCourseId, login, logout } = useCanvasAuth();
   const { courseName } = useCanvasCourse();
   const { isWebSocketConnected } = useConvexConnectionState();
 
-  const [localApiUrl, setLocalApiUrl] = useState("");
-  const [localApiKey, setLocalApiKey] = useState("");
   const [localCourseId, setLocalCourseId] = useState("");
   const [saved, setSaved] = useState(false);
   const [cacheCleared, setCacheCleared] = useState(false);
@@ -33,57 +30,29 @@ export default function Settings() {
   const [facilitatorName, setFacilitatorName] = useState("");
 
   useEffect(() => {
-    setLocalApiUrl(apiUrl || "https://bostoncollege.instructure.com/api/v1");
-    setLocalApiKey(apiKey);
     setLocalCourseId(courseId);
-  }, [apiUrl, apiKey, courseId]);
-
-  // Load Google Sheets settings and facilitator info only once on component mount
+  }, [courseId]);
 
   useEffect(() => {
     const loadedSheetId = localStorage.getItem("google_sheets_id") || "";
     const loadedApiKey = localStorage.getItem("google_api_key") || "";
-
-    console.log("📥 Loading Google Sheets settings (mount):", {
-      sheetId: loadedSheetId ? "present" : "empty",
-      apiKey: loadedApiKey ? "present" : "empty",
-    });
-    const loadedFacilitatorName =
-      localStorage.getItem("facilitator_name") || "";
+    const loadedFacilitatorName = localStorage.getItem("facilitator_name") || "";
     setGoogleSheetsId(loadedSheetId);
     setGoogleApiKey(loadedApiKey);
     setFacilitatorName(loadedFacilitatorName);
-  }, []); // Empty dependency array = only run on mount
+  }, []);
 
   function handleSave() {
-    updateCredentials(localApiUrl, localApiKey, localCourseId);
-
-    // Save Google Sheets settings
-    console.log("💾 Saving Google Sheets settings:", {
-      sheetId: googleSheetsId ? "present" : "empty",
-      apiKey: googleApiKey ? "present" : "empty",
-      sheetIdValue: googleSheetsId,
-      apiKeyValue: googleApiKey ? "***" : "empty",
-    });
+    updateCourseId(localCourseId);
 
     localStorage.setItem("google_sheets_id", googleSheetsId);
     localStorage.setItem("google_api_key", googleApiKey);
     localStorage.setItem("facilitator_name", facilitatorName);
 
-    // Verify they were saved
-    const savedSheetId = localStorage.getItem("google_sheets_id");
-    const savedApiKey = localStorage.getItem("google_api_key");
-    console.log("✓ Verified saved Google Sheets settings:", {
-      sheetId: savedSheetId ? "present" : "empty",
-      apiKey: savedApiKey ? "present" : "empty",
-    });
-
-    // Clear cache when credentials are updated
     if (localCourseId) {
       clearCache(localCourseId);
     }
 
-    // Clear Google Sheets cache if settings changed
     if (typeof window !== "undefined" && window.googleSheetsApi) {
       window.googleSheetsApi.clearSheetsCache();
     }
@@ -112,7 +81,6 @@ export default function Settings() {
     setSheetsTestResult({ testing: true });
 
     try {
-      // Load Google Sheets API if not already loaded
       if (typeof window !== "undefined" && !window.googleSheetsApi) {
         const script = document.createElement("script");
         script.src = "/js/googleSheetsApi.js";
@@ -127,13 +95,13 @@ export default function Settings() {
 
       setSheetsTestResult({
         success: true,
-        message: `✅ Successfully connected! Found ${result.length} user records.`,
-        data: result.slice(0, 3), // Show first 3 records as preview
+        message: `Successfully connected! Found ${result.length} user records.`,
+        data: result.slice(0, 3),
       });
     } catch (error) {
       setSheetsTestResult({
         success: false,
-        message: `❌ Connection failed: ${error.message}`,
+        message: `Connection failed: ${error.message}`,
       });
     }
 
@@ -143,47 +111,71 @@ export default function Settings() {
   return (
     <Layout containerWidth="narrow">
       <PageContainer>
+        {/* Canvas Authentication */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-800 mb-6">
-            Canvas API Settings
+            Canvas Authentication
+          </h2>
+
+          {authLoading ? (
+            <p className="text-gray-500">Checking authentication status...</p>
+          ) : isLoggedIn ? (
+            <div className="space-y-4">
+              <div
+                className="rounded-md p-3"
+                style={{
+                  backgroundColor: "var(--color-success)",
+                  borderColor: "var(--color-success-content)",
+                  border: "var(--border) solid",
+                }}
+              >
+                <p
+                  className="text-sm"
+                  style={{ color: "var(--color-success-content)" }}
+                >
+                  <strong>Signed in as:</strong> {userName || "Canvas User"}
+                </p>
+              </div>
+              <button
+                onClick={logout}
+                className="px-4 py-2 font-semibold hover:opacity-90 transition-colors"
+                style={{
+                  backgroundColor: "var(--color-error)",
+                  color: "var(--color-error-content)",
+                  borderRadius: "var(--radius-field)",
+                }}
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Sign in with your Canvas account to access discussion data.
+                Authentication is handled securely through Canvas OAuth.
+              </p>
+              <button
+                onClick={login}
+                className="px-6 py-2 font-semibold hover:opacity-90 transition-colors"
+                style={{
+                  backgroundColor: "var(--color-secondary)",
+                  color: "var(--color-secondary-content)",
+                  borderRadius: "var(--radius-field)",
+                }}
+              >
+                Sign in with Canvas
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Course Settings */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+            Course Settings
           </h2>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Canvas API URL
-              </label>
-              <input
-                type="text"
-                value={localApiUrl}
-                onChange={(e) => setLocalApiUrl(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent"
-                style={{ "--tw-ring-color": "#003957" }}
-                placeholder="https://yourschool.instructure.com/api/v1"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Your Canvas instance API URL (usually ends with /api/v1)
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Canvas API Access Token
-              </label>
-              <input
-                type="password"
-                value={localApiKey}
-                onChange={(e) => setLocalApiKey(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent"
-                style={{ "--tw-ring-color": "#003957" }}
-                placeholder="Your Canvas API token"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Generate this in Canvas under Account → Settings → Approved
-                Integrations
-              </p>
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Course ID
@@ -220,6 +212,7 @@ export default function Settings() {
             )}
           </div>
         </div>
+
         {/* Convex Connection Status */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">
@@ -264,7 +257,7 @@ export default function Settings() {
         {/* Google Sheets Integration Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-800 mb-6">
-            📊 Google Sheets Integration
+            Google Sheets Integration
           </h2>
           <p className="text-sm text-gray-600 mb-4">
             Enhance user profiles with additional data from Google Sheets.
@@ -278,10 +271,7 @@ export default function Settings() {
               <input
                 type="text"
                 value={googleSheetsId}
-                onChange={(e) => {
-                  console.log("📝 Google Sheets ID changed:", e.target.value);
-                  setGoogleSheetsId(e.target.value);
-                }}
+                onChange={(e) => setGoogleSheetsId(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent"
                 style={{ "--tw-ring-color": "#003957" }}
                 placeholder="e.g., 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
@@ -299,13 +289,7 @@ export default function Settings() {
               <input
                 type="password"
                 value={googleApiKey}
-                onChange={(e) => {
-                  console.log(
-                    "🔑 Google API Key changed:",
-                    e.target.value ? "***" : "empty"
-                  );
-                  setGoogleApiKey(e.target.value);
-                }}
+                onChange={(e) => setGoogleApiKey(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent"
                 style={{ "--tw-ring-color": "#003957" }}
                 placeholder="Google Sheets API Key"
@@ -323,7 +307,6 @@ export default function Settings() {
               </p>
             </div>
 
-            {/* Test Connection Button */}
             <button
               onClick={testGoogleSheetsConnection}
               disabled={
@@ -339,7 +322,6 @@ export default function Settings() {
               {sheetsTestResult?.testing ? "Testing..." : "Test Connection"}
             </button>
 
-            {/* Test Results */}
             {sheetsTestResult && !sheetsTestResult.testing && (
               <div
                 className="p-3 rounded-md"
@@ -383,7 +365,6 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Schema Information */}
             <div
               className="p-3 rounded-md text-sm"
               style={{
@@ -499,20 +480,17 @@ export default function Settings() {
             style={{ color: "var(--color-info-content)" }}
           >
             <p>
-              <strong>1. Get your Canvas API URL:</strong> Usually
-              https://yourschool.instructure.com/api/v1
+              <strong>1. Sign in with Canvas:</strong> Click the "Sign in with
+              Canvas" button above to authenticate via your institutional Canvas
+              account.
             </p>
             <p>
-              <strong>2. Generate an API token:</strong> Go to Canvas → Account
-              → Settings → Approved Integrations → New Access Token
+              <strong>2. Enter your Course ID:</strong> Look at your Canvas
+              course URL - it's the number after /courses/
             </p>
             <p>
-              <strong>3. Find your Course ID:</strong> Look at your course URL -
-              it's the number after /courses/
-            </p>
-            <p>
-              <strong>4. Save settings:</strong> Click "Save Settings" to store
-              your credentials locally
+              <strong>3. Save settings:</strong> Click "Save Settings" to store
+              your course configuration.
             </p>
           </div>
         </div>

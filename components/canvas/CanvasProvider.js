@@ -1,66 +1,68 @@
 /**
  * CanvasProvider - React Context Provider for Canvas API Integration
- * 
- * Manages Canvas API credentials, course data, and shared state across all pages.
- * Provides centralized credential management, course name fetching, and validation.
+ *
+ * Manages OAuth authentication state, course data, and shared state across all pages.
+ * Authentication is handled server-side via OAuth; tokens never reach the client.
  */
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 const CanvasContext = createContext();
 
 export function CanvasProvider({ children }) {
-  // Canvas API credential state
-  const [apiUrl, setApiUrl] = useState('');           // Canvas instance URL
-  const [apiKey, setApiKey] = useState('');           // Canvas API access token
-  const [courseId, setCourseId] = useState('');       // Current course ID
-  
-  // Course information state
-  const [courseName, setCourseName] = useState('');   // Fetched course name
-  const [courseLoading, setCourseLoading] = useState(false); // Course fetch loading state
-  const [courseError, setCourseError] = useState(''); // Course fetch error state
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [canvasUrl, setCanvasUrl] = useState('');
+  const [authLoading, setAuthLoading] = useState(true);
+  const [courseId, setCourseId] = useState('');
+  const [courseName, setCourseName] = useState('');
+  const [courseLoading, setCourseLoading] = useState(false);
+  const [courseError, setCourseError] = useState('');
 
-  /**
-   * Load stored credentials from localStorage on component mount
-   * Restores user's Canvas API settings across browser sessions
-   * TODO: Migrate to Convex authentication for better security
-   */
+  // Check OAuth session status on mount
   useEffect(() => {
-    setApiUrl(localStorage.getItem('canvas_api_url') || '');
-    setApiKey(localStorage.getItem('canvas_api_key') || '');
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/oauth/status');
+        if (res.ok) {
+          const data = await res.json();
+          setIsLoggedIn(data.isLoggedIn);
+          setUserName(data.userName || '');
+          setCanvasUrl(data.canvasUrl || '');
+        }
+      } catch {
+        setIsLoggedIn(false);
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+    checkAuth();
+  }, []);
+
+  // Load courseId from localStorage (user preference, not a secret)
+  useEffect(() => {
     setCourseId(localStorage.getItem('course_id') || '');
   }, []);
 
-  /**
-   * Fetch course information when credentials change
-   * Validates credentials and retrieves course name for display
-   */
+  // Fetch course name when authenticated and courseId changes
   useEffect(() => {
-    if (!apiUrl || !apiKey || !courseId) {
+    if (!isLoggedIn || !courseId) {
       setCourseName('');
       return;
     }
 
-    /**
-     * Fetches course details from Canvas API
-     * Updates course name state or sets error on failure
-     */
     async function fetchCourseName() {
       setCourseLoading(true);
       setCourseError('');
-      
       try {
         const res = await fetch('/api/canvas-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiUrl,
-            apiKey,
             endpoint: `/courses/${courseId}`,
             method: 'GET'
           })
         });
-        
         if (res.ok) {
           const data = await res.json();
           setCourseName(data.name || '');
@@ -68,66 +70,62 @@ export function CanvasProvider({ children }) {
           setCourseName('');
           setCourseError('Failed to fetch course information');
         }
-      } catch (error) {
+      } catch {
         setCourseName('');
         setCourseError('Error connecting to Canvas API');
       } finally {
         setCourseLoading(false);
       }
     }
-    
     fetchCourseName();
-  }, [apiUrl, apiKey, courseId]);
+  }, [isLoggedIn, courseId]);
 
-  // Check if credentials are missing
-  const credentialsMissing = () => {
-    return !apiUrl || !apiKey || !courseId;
-  };
-
-  // Update credentials (used by settings page)
-  const updateCredentials = (newApiUrl, newApiKey, newCourseId) => {
-    setApiUrl(newApiUrl);
-    setApiKey(newApiKey);
+  const updateCourseId = useCallback((newCourseId) => {
     setCourseId(newCourseId);
-    
-    // Update localStorage for development convenience
-    // TODO: Migrate to Convex authentication for better security
-    localStorage.setItem('canvas_api_url', newApiUrl);
-    localStorage.setItem('canvas_api_key', newApiKey);
     localStorage.setItem('course_id', newCourseId);
-  };
+  }, []);
+
+  const login = useCallback(() => {
+    window.location.href = '/api/oauth/authorize';
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch('/api/oauth/logout', { method: 'POST' });
+    } catch {
+      // Best effort
+    }
+    setIsLoggedIn(false);
+    setUserName('');
+    setCourseName('');
+  }, []);
+
+  const credentialsMissing = useCallback(() => {
+    return !isLoggedIn || !courseId;
+  }, [isLoggedIn, courseId]);
 
   const value = {
-    // Credentials
-    apiUrl,
-    apiKey,
+    isLoggedIn,
+    userName,
+    canvasUrl,
+    authLoading,
     courseId,
-    updateCredentials,
+    updateCourseId,
+    login,
+    logout,
     credentialsMissing,
-    
-    // Course data
     courseName,
     courseLoading,
     courseError,
-    
-    // Canvas API helper
     makeCanvasRequest: async (endpoint, method = 'GET', body = null) => {
       const response = await fetch('/api/canvas-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiUrl,
-          apiKey,
-          endpoint,
-          method,
-          body
-        })
+        body: JSON.stringify({ endpoint, method, body })
       });
-      
       if (!response.ok) {
         throw new Error(`Canvas API request failed: ${response.statusText}`);
       }
-      
       return response.json();
     }
   };

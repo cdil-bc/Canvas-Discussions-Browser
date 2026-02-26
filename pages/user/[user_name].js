@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import Layout from "../../components/layout/Layout";
 import PageContainer from "../../components/layout/PageContainer";
 import { useCanvasAuth } from "../../components/canvas/useCanvasAuth";
+import { useCanvas } from "../../components/canvas/CanvasProvider";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
 import ErrorMessage from "../../components/ui/ErrorMessage";
 import CredentialsRequired from "../../components/ui/CredentialsRequired";
@@ -14,7 +15,7 @@ import { api } from "../../convex/_generated/api";
 export default function UserPage() {
   const router = useRouter();
   const { user_name } = router.query;
-  const { credentialsMissing, apiUrl, apiKey, courseId } = useCanvasAuth();
+  const { credentialsMissing, courseId } = useCanvasAuth();
 
   const [posts, setPosts] = useState([]);
   const [studentId, setStudentId] = useState(null);
@@ -23,6 +24,7 @@ export default function UserPage() {
   const [assignmentsMap, setAssignmentsMap] = useState({});
   const [enhancedUserData, setEnhancedUserData] = useState(null);
   const [sheetsLoading, setSheetsLoading] = useState(false);
+  const { canvasUrl } = useCanvas();
 
   // Group posts by parent_id to organize replies
   const organizePostsAndReplies = (posts) => {
@@ -43,73 +45,40 @@ export default function UserPage() {
 
   // Fetch enhanced user data from Google Sheets
   useEffect(() => {
-    console.log("🔍 Google Sheets useEffect running for user:", user_name);
-
-    if (!user_name || credentialsMissing()) {
-      console.log(
-        "❌ Skipping Google Sheets: missing user_name or credentials"
-      );
-      return;
-    }
+    if (!user_name || credentialsMissing()) return;
 
     const googleSheetsId = localStorage.getItem("google_sheets_id");
     const googleApiKey = localStorage.getItem("google_api_key");
 
-    console.log("🔑 Google Sheets credentials check:", {
-      sheetId: googleSheetsId ? "found" : "missing",
-      apiKey: googleApiKey ? "found" : "missing",
-    });
-
     if (googleSheetsId && googleApiKey) {
       setSheetsLoading(true);
 
-      // Load Google Sheets API if not already loaded
       if (typeof window !== "undefined" && !window.googleSheetsApi) {
-        console.log("📥 Loading Google Sheets API script...");
         const script = document.createElement("script");
         script.src = "/js/googleSheetsApi.js";
         script.onload = () => {
-          console.log("✅ Google Sheets API script loaded successfully");
           if (window.googleSheetsApi) {
-            console.log("✅ window.googleSheetsApi is available");
             fetchEnhancedUserData(googleSheetsId, googleApiKey);
           } else {
-            console.error(
-              "❌ window.googleSheetsApi not found after script load"
-            );
             setSheetsLoading(false);
           }
         };
-        script.onerror = (error) => {
-          console.error("❌ Failed to load Google Sheets API script:", error);
+        script.onerror = () => {
           setSheetsLoading(false);
         };
         document.head.appendChild(script);
       } else {
-        console.log("✅ Google Sheets API already loaded");
         fetchEnhancedUserData(googleSheetsId, googleApiKey);
       }
-    } else {
-      console.log(
-        "ℹ️ Google Sheets integration not configured - skipping enhanced data"
-      );
     }
   }, [user_name]);
 
   const fetchEnhancedUserData = async (sheetId, apiKey) => {
-    console.log("🔍 Fetching enhanced user data for:", user_name, {
-      sheetId,
-      apiKey: apiKey ? "***" : "missing",
-    });
-
     try {
-      // Create a mock canvas user to match against sheets
       const mockCanvasUser = {
         display_name: user_name,
         user_name: user_name,
       };
-
-      console.log("📊 Calling Google Sheets API with user:", mockCanvasUser);
 
       const result = await window.googleSheetsApi.fetchAndMatchSheetsData({
         sheetId,
@@ -118,19 +87,11 @@ export default function UserPage() {
         useCache: true,
       });
 
-      console.log("📊 Google Sheets API result:", result);
-
       if (result.success && result.matchedUsers.length > 0) {
-        console.log(
-          "✅ Found enhanced data:",
-          result.matchedUsers[0].enhancedData
-        );
         setEnhancedUserData(result.matchedUsers[0].enhancedData);
-      } else {
-        console.log("❌ No enhanced data found for user:", user_name);
       }
     } catch (error) {
-      console.error("❌ Failed to fetch enhanced user data:", error);
+      console.error("Failed to fetch enhanced user data:", error);
     } finally {
       setSheetsLoading(false);
     }
@@ -152,8 +113,6 @@ export default function UserPage() {
     }
 
     fetchCanvasUserPosts({
-      apiUrl,
-      apiKey,
       courseId,
       userName: user_name,
       userId,
@@ -173,8 +132,6 @@ export default function UserPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              apiUrl,
-              apiKey,
               endpoint: `/courses/${courseId}/assignments?per_page=100`,
               method: "GET",
             }),
@@ -200,8 +157,6 @@ export default function UserPage() {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    apiUrl,
-                    apiKey,
                     endpoint: `/courses/${courseId}/assignments/${post.assignment_id}/submissions/${post.user_id}`,
                     method: "GET",
                   }),
@@ -227,7 +182,7 @@ export default function UserPage() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [user_name, apiUrl, apiKey, courseId, credentialsMissing]);
+  }, [user_name, courseId, credentialsMissing]);
 
   // Show credentials required page if missing Canvas API settings
   if (credentialsMissing()) {
@@ -459,7 +414,7 @@ export default function UserPage() {
                               assignmentsMap[post.assignment_id]
                                 ?.points_possible > 0 && (
                                 <a
-                                  href={`${apiUrl.replace("/api/v1", "")}courses/${courseId}/gradebook/speed_grader?assignment_id=${post.assignment_id}&student_id=${post.user_id}`}
+                                  href={`${canvasUrl}/courses/${courseId}/gradebook/speed_grader?assignment_id=${post.assignment_id}&student_id=${post.user_id}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-xs px-2 py-1 transition hover:opacity-90"
